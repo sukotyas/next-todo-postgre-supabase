@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: app_password
+      POSTGRES_DB: simple_todo_list
+    ports:
+      # Host 5433 to avoid clashing with a local Postgres on 5432.
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      # -h 127.0.0.1 forces a TCP check so it only passes once Postgres is
+      # actually accepting network connections (not during socket-only init).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U app_user -d simple_todo_list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  # Runs schema migration + seed once, then exits. The app waits for it to finish.
+  migrate:
+    # Built from the "builder" stage, which keeps the full node_modules.
+    # The runtime image bundles pg into the Next.js server build, so it
+    # isn't available as a package for the standalone migrate/seed scripts.
+    build:
+      context: .
+      target: builder
+    command: sh -c "node scripts/migrate.mjs && node scripts/seed.mjs"
+    environment:
+      DATABASE_URL: postgres://app_user:app_password@db:5432/simple_todo_list
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://app_user:app_password@db:5432/simple_todo_list
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  db_data:

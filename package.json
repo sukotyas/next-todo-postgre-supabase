@@ -1,0 +1,22 @@
+{
+  "name": "simple-to-do-list",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "db:migrate": "node --env-file=.env scripts/migrate.mjs",
+    "db:seed": "node --env-file=.env scripts/seed.mjs",
+    "db:setup": "node --env-file=.env scripts/setup-db.mjs",
+    "dev": "next dev",
+    "build": "next build && node scripts/prepare-standalone.mjs",
+    "start": "HOSTNAME=0.0.0.0 node .next/standalone/server.js"
+  },
+  "dependencies": {
+    "next": "^16.2.4",
+    "pg": "^8.13.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  }
+}
