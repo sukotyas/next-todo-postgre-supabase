@@ -2,32 +2,19 @@
 
 A minimal Next.js app for testing deployment on a VM or in a container while
 using PostgreSQL as the database. The app has no authentication and exposes a
-small CRUD API through Next.js route handlers.
+small CRUD API through Next.js route handlers. This app is optimized for Supabase + Vercel.
 
 ## Stack
 
 - Next.js App Router
-- PostgreSQL
-- Server-side PostgreSQL connection pool kept off the browser
-
-## Run everything with Docker Compose
-
-The fastest way to get a working app plus database:
-
-```bash
-docker compose up --build
-```
-
-This starts PostgreSQL, runs the migration and seed once, then starts the app.
-Open [http://localhost:3000](http://localhost:3000). The database is exposed on
-host port `5433` (mapped to the container's `5432`).
+- PostgreSQL (via Supabase)
 
 ## Requirements (without Docker)
 
 - Node.js 20 or newer
 - npm
 - A reachable PostgreSQL server
-- A PostgreSQL user with permission to create the database and tables used by this app
+- A PostgreSQL user with permission to create tables used by this app
 
 ## Local installation
 
@@ -52,28 +39,31 @@ npm run dev
 
 ## Environment variables
 
-Use either `DATABASE_URL`:
+This app uses two different Supabase connection URLs depending on the context:
 
+| Purpose | Pooler type | Port |
+|---|---|---|
+| Migrations (local) | Session Pooler | 5432 |
+| App at runtime (Vercel) | Transaction Pooler | 6543 |
+
+**For migrations** — use the Session Pooler (port 5432):
 ```env
-DATABASE_URL=postgres://app_user:app_password@127.0.0.1:5432/simple_todo_list
+DATABASE_URL=postgres://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require
 ```
 
-Or the individual PostgreSQL variables:
-
+**For Vercel** — use the Transaction Pooler (port 6543):
 ```env
-PGHOST=127.0.0.1
-PGPORT=5432
-PGDATABASE=simple_todo_list
-PGUSER=app_user
-PGPASSWORD=app_password
+DATABASE_URL=postgres://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?sslmode=require
 ```
+
+Both URLs are available in **Supabase → Project Settings → Database → Connection string**
+(toggle "Display connection pooler" on).
 
 ## Database commands
 
-- `npm run db:migrate` creates the database if needed and applies `database/schema.sql`.
+- `npm run db:migrate` applies `database/schema.sql` to the target database.
 - `npm run db:seed` inserts the sample todos if the table is empty.
 - `npm run db:setup` runs migration and seed in order.
-- `npm run build` prepares the standalone server assets used by `npm run start`.
 
 If your PostgreSQL user cannot create databases, create `simple_todo_list`
 manually first, then rerun `npm run db:migrate`.
@@ -86,6 +76,19 @@ manually first, then rerun `npm run db:migrate`.
 - `PATCH /api/todos/:id` updates `title` and or `completed`.
 - `DELETE /api/todos/:id` removes a todo.
 
+## Deploy on Vercel + Supabase
+
+1. **Create a Supabase project** at [supabase.com](https://supabase.com). Save the database password.
+2. **Run migrations locally** using the Session Pooler URL (port 5432):
+   ```bash
+   npm run db:migrate
+   npm run db:seed   # optional
+   ```
+3. **Import the repo** at [vercel.com/new](https://vercel.com/new). Vercel auto-detects Next.js.
+4. **Add the environment variable** in Vercel's project settings:
+   - `DATABASE_URL` → Transaction Pooler URL (port 6543) with `?sslmode=require`
+5. **Deploy.**
+
 ## Deploy on a VM
 
 1. Install Node.js 20 or newer.
@@ -97,9 +100,6 @@ manually first, then rerun `npm run db:migrate`.
 7. Run `npm run build`.
 8. Start the app with `npm run start`.
 
-`npm run build` copies the generated `_next/static` files into the standalone
-folder so CSS and client-side JavaScript load correctly on the VM.
-
 ## Deploy with Docker (app only)
 
 Build and run against an external PostgreSQL server:
@@ -107,6 +107,13 @@ Build and run against an external PostgreSQL server:
 ```bash
 docker build -t simple-to-do-list .
 docker run --env-file .env -p 3000:3000 simple-to-do-list
+```
+
+Run migrations before starting the container:
+
+```bash
+npm run db:migrate
+npm run db:seed   # optional
 ```
 
 ## PostgreSQL notes
